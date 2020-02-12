@@ -1,0 +1,26 @@
+'''
+
+'''
+
+from math import *
+import cv2
+import numpy as np
+import imageUtils as iu
+
+
+def takePicture():
+    '''Return cv2 image object of current camera capture.'''
+    v = cv2.VideoCapture(0)
+    r,pic = v.read()
+    v.release()
+    return pic
+
+
+
+
+   
+if __name__ == '__main__' :
+    
+    takePicture()
+   
+    

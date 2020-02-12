@@ -1,0 +1,270 @@
+'''
+
+'''
+
+from math import *
+import cv2
+import numpy as np
+import imageUtils as iu
+
+
+
+def mean(lst):
+    '''Returns mean of non-empty list lst.
+    '''
+    sum = 0
+    for item in lst:
+        sum += item
+    return sum / (len(lst) - 1)
+
+
+def sdev(lst):
+    ''' Returns standard deviation of non-empty list lst
+    '''
+    avg = mean(lst)
+    sum = 0
+    for item in lst:
+        sum += (item - avg)**2
+    return (sum / len(lst))**0.5
+
+
+def fixVal(value,maxvalue):
+    ''' Return fixed value to lie in range [0,maxvalue)
+    '''
+    while value < 0:
+        value += maxvalue
+    return value % maxvalue
+
+def takePicture():
+    '''Return cv2 image object of current camera capture.'''
+    v = cv2.VideoCapture(0)
+    r,pic = v.read()
+    v.release()
+    return pic
+
+
+class ColorFinder(object):
+    '''
+    Two basic uses: 1) selection region to obtain HSV ranges.
+    2) These ranges are used by the color blob finder (findBlob), usually
+    by simply setting hsvminx/max in the constructor.
+    '''
+    def __init__(self,newpic=False,extract=False):
+        #self.pic = cv2.imread("test2.jpg")
+        if newpic: self.pic = takePicture()
+
+        cv2.namedWindow('image',cv2.WINDOW_NORMAL) # Can be resized
+        self.ROI = None
+        if extract: self.extractColor(self.pic)
+        self.region = False
+        # values sort of work for orange pylon
+        self.hsvmin = np.array([ 3, 214, 193] )
+        self.hsvmax = np.array([ 20, 230, 233] )
+
+    def extractColor(self,im):
+        '''
+        extracts color statistics via user-seletion of a region.
+        Sets: HSV mean and stdev value.
+        im: the bgr cv2 image
+        '''
+        r = iu.SelectROI('image',im)()
+        #print(self.ROI)
+        self.ROI = r
+        # selected sub image (y,x) order!!!
+        sub_im = im[ r[0][1]:r[1][1] ,r[0][0]:r[1][0] ]
+        #cv2.imshow('image',sub_im); cv2.waitKey(0)
+
+        # Convert BGR to HSV
+        hsv = cv2.cvtColor(sub_im, cv2.COLOR_BGR2HSV)
+        self.region = hsv
+        self.havg = np.mean(hsv[:,:,0])
+        self.savg = np.mean(hsv[:,:,1])
+        self.vavg = np.mean(hsv[:,:,2])
+        self.hstd = np.std(hsv[:,:,0])
+        self.sstd = np.std(hsv[:,:,1])
+        self.vstd = np.std(hsv[:,:,2])
+
+    def fixHSVRange(self,img_hsv,hfac=2,sfac=2,vfac=2):
+        '''
+        Return portion of img_hsv with HSV pixels that
+        are within stdev of the mean.
+        '''
+        HMAX = 180
+        SMAX = 256
+        VMAX = 256
+        MIN = 0
+        # factor * stdev for HSV
+        hstd = min(HMAX/2,int(hfac*max(1,self.hstd)))
+        sstd = int(sfac*max(1,self.sstd))
+        vstd = int(vfac*max(1,self.vstd))
+
+        slo = int(max(0,self.savg - sstd))
+        vlo = int(max(0,self.vavg - vstd))
+        shi = int(min(SMAX-1,self.savg+sstd))
+        vhi = int(min(VMAX-1,self.vavg+vstd))
+        # hue is circular!
+        hlo = int(self.havg - hstd)
+        hhi = int(self.havg + hstd)
+        if hlo < 0: # color hue includes zero
+            hlo = (hlo + HMAX) % HMAX # need to use two masks
+            lower = np.array([hlo,slo,vlo])
+            upper = np.array([HMAX-1,shi,vhi])
+            print('m1',lower,upper)
+            mask1 = cv2.inRange(img_hsv, lower, upper)
+            lower = np.array([0,slo,vlo])
+            upper = np.array([hhi,shi,vhi])
+            print('m2',lower,upper)
+            mask2 = cv2.inRange(img_hsv, lower, upper)
+            mask = cv2.bitwise_or(mask1,mask2)
+        elif hhi >= HMAX: # hue includes 180
+            hhi = hhi % HMAX
+            lower = np.array([hlo,slo,vlo])
+            upper = np.array([HMAX,shi,vhi])
+            print('m1-1',lower,upper)
+            mask1 = cv2.inRange(img_hsv, lower, upper)
+            lower = np.array([0,slo,vlo])
+            upper = np.array([hhi,shi,vhi])
+            print('m2-1',lower,upper)
+            mask2 = cv2.inRange(img_hsv, lower, upper)
+            mask = cv2.bitwise_or(mask1,mask2)
+
+        else:
+            lower = np.array([hlo,slo,vlo])
+            upper = np.array([hhi,shi,vhi])
+            print('HSV lower/upper:',lower,upper)
+            mask = cv2.inRange(img_hsv, lower, upper)
+            self.hsvmin = lower
+            self.hsvmax = upper
+        return mask
+
+    def configBlob(self, extract=True,debug=False):
+        '''Returns numpixels, avgX, avgY and draws color blob in black on new
+        window.  pic2: picture in which to find blob.  hsvlist: list
+        of 6 min/max values for hsv [hmin,hmax,smin,smax,vmin,vmax]
+        These values can exceed the ranges hrange =
+        [0,360),srange=[0,1],vrange=[0,1]
+
+        '''
+        #print("xx",extract,self.region)
+        if extract:
+            self.extractColor(self.pic)
+        im = self.pic
+        img_hsv = cv2.cvtColor(im,cv2.COLOR_BGR2HSV)
+        mask = self.fixHSVRange(img_hsv,1,1,1)
+        # Bitwise-AND mask and original image
+        res = cv2.bitwise_and(im,im, mask= mask)
+        if debug:
+            cv2.imshow('frame',im)
+            cv2.imshow('mask',mask)
+            cv2.imshow('res',res)
+            cv2.waitKey(0)
+
+        # Setup SimpleBlobDetector parameters.
+        params = cv2.SimpleBlobDetector_Params()
+        # Change thresholds
+        params.minThreshold = 0
+        params.maxThreshold = 256
+        params.filterByColor = True
+        params.blobColor = 255 # lighter blobs
+        params.filterByArea = True
+        params.minArea = 200
+        params.maxArea = self.pic.shape[0] * self.pic.shape[1] / 2
+        params.filterByConvexity = False
+        params.filterByCircularity = False
+        params.filterByInertia = False
+        detector = cv2.SimpleBlobDetector_create(params)
+
+        # Detect blobs.
+        keypoints = detector.detect(res)
+        biggest = 0
+        for i,kpt in enumerate(keypoints):
+            print('key',kpt.pt,kpt.size)
+            if kpt.size > keypoints[biggest].size:
+                biggest = i
+
+        # Draw detected blobs as green circles.
+        # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size
+        # of the circle corresponds to the size of blob
+        im_with_keypoints = cv2.drawKeypoints(self.pic, keypoints,
+                                              np.array([]),
+                                              (0,255,0),
+                                              cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+        # Show keypoints
+        cv2.imshow("Keypoints", im_with_keypoints)
+        cv2.waitKey(0)
+        kpt = keypoints[biggest]
+        return [kpt.size,kpt.pt[0],kpt.pt[1]]
+
+
+    def findBlob(self, im, debug=False):
+        '''Returns numpixels, avgX, avgY and draws color blob in black on new
+        window.  pic2: picture in which to find blob.  hsvlist: list
+        of 6 min/max values for hsv [hmin,hmax,smin,smax,vmin,vmax]
+        These values can exceed the ranges hrange =
+        [0,360),srange=[0,1],vrange=[0,1]
+
+        '''
+        img_hsv = cv2.cvtColor(im,cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(img_hsv, self.hsvmin, self.hsvmax)
+
+        # Bitwise-AND mask and original image
+        res = cv2.bitwise_and(im,im, mask= mask)
+        #self.mask = mask
+
+        if debug:
+            cv2.imshow('frame',im)
+            cv2.imshow('mask',mask)
+            cv2.imshow('res',res)
+            cv2.waitKey(0)
+
+        # Setup SimpleBlobDetector parameters.
+        params = cv2.SimpleBlobDetector_Params()
+        # Change thresholds
+        params.minThreshold = 0
+        params.maxThreshold = 256
+        params.filterByColor = True
+        params.blobColor = 255 # lighter blobs
+        params.filterByArea = True
+        params.minArea = 200
+        params.maxArea = im.shape[0] * im.shape[1] / 2
+        params.filterByConvexity = False
+        params.filterByCircularity = False
+        params.filterByInertia = False
+        detector = cv2.SimpleBlobDetector_create(params)
+
+        # Detect blobs.
+        keypoints = detector.detect(res)
+        print(keypoints)
+        biggest = 0
+        for i,kpt in enumerate(keypoints):
+            print('key',kpt.pt,kpt.size)
+            if kpt.size > keypoints[biggest].size:
+                biggest = i
+
+        # Draw detected blobs as green circles.
+        # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size
+        # of the circle corresponds to the size of blob
+        im_with_keypoints = cv2.drawKeypoints(im, keypoints,
+                                              np.array([]),
+                                              (0,255,0),
+                                              cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
+        # Show keypoints
+        if debug:
+            cv2.imshow("Keypoints", im_with_keypoints)
+            cv2.waitKey(0)
+        if keypoints == []:
+            return [0,0,0]
+        kpt = keypoints[biggest]
+        return [kpt.size,kpt.pt[0],kpt.pt[1]]
+
+if __name__ == '__main__' :
+    config = True
+    if config: # set up HSV values
+        cf = ColorFinder(True,True)
+        cf.configBlob(extract=False,debug=True)
+    else:  # use whatever HSV min/max are set up in constructor
+        cf = ColorFinder(False,False)
+        sz,x,y = cf.findBlob(takePicture(),debug=False)
+        print(sz,x,y)
