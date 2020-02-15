@@ -269,3 +269,4 @@ if __name__ == '__main__' :
         cf = ColorFinder(False,False)
         sz,x,y = cf.findBlob(takePicture(),debug=False)
         print(sz,x,y)
+        print("TESTING")

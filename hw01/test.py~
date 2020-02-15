@@ -8,19 +8,12 @@ import numpy as np
 import imageUtils as iu
 
 
-def takePicture():
-    '''Return cv2 image object of current camera capture.'''
-    v = cv2.VideoCapture(0)
-    r,pic = v.read()
-    v.release()
-    return pic
+from picamera import PiCamera
+from time import sleep
 
+camera = PiCamera()
 
-
-
-   
-if __name__ == '__main__' :
-    
-    takePicture()
-   
-    
+camera.start_preview()
+sleep(1)
+camera.capture('image.jpg')
+camera.stop_preview()

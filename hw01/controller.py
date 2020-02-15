@@ -1,24 +1,17 @@
 '''
-This controller implements behaviors and a fixed priority arbitration
-for them.  Assumes existence of single configured robot.
-Behaviors are implemented as objects.
-
-USAGE:
-Initialize robot
-Create Controller and then use run method.
-Avoid:
-
+HW01 Due 02172020 -  Code from Alex's Computer (I guess?)
+Authors: Alexander L, Jackie L.
 '''
 
-import sys
-import random
 import select
 from math import *
 import numpy as np
 from myro import *
 import cv2
 import imageUtils as iu
-import colorfinder as cf 
+from colorfinder import *
+from threading import Timer
+
 
 
 
@@ -78,7 +71,7 @@ class Avoid(Behavior):
     STALLED = 1
     def __init__(self):
         self.state = Avoid.NO_ACTION
-        self.turnspeed = 0.5
+        self.turnspeed = 0.9
 
     def check(self):
         '''see if there are any obstacles.  If so turn other direction'''
@@ -145,30 +138,57 @@ class Wander(Behavior):
             return True
 
     def run(self):
-        '''Modify current motor commands by a value in range [-0.25,0.25].'''
+        '''Modify current motor commands by a value in range [-0.25,0.25].
+        But can we make it go faster? Hehehe... '''
         print('Wander')
-        self.lspeed += 0.9 * (random.random() - 0.5)
-        self.rspeed += 0.9 * (random.random() - 0.5)
+        self.lspeed += 5.9 * (random.random() - 0.5)
+        self.rspeed += 5.9 * (random.random() - 0.5)
         if (self.lspeed < 0 and self.rspeed < 0): #prevent backwards motion
-            self.lspeed = .9    #random.random() MAKING LUCIUS FASTER 
-            self.rspeed = .9    #random.random() 
+            self.lspeed = 5.9    #random.random() MAKING LUCIUS FASTER 
+            self.rspeed = 5.9    #random.random() 
         motors(self.lspeed,self.rspeed)
         wait(0.4) # guarantee some movement
 
         
 class Scan(Behavior):
     
+    
     def __init__(self):
-        self.found = False 
+        self.found = False
+        self.timer = 0
+       
     
     def check(self):
-        return True
+        
+        #We always want Lucius to be scanning, even when pushing obj,
+        # but only once every three or so seconds.
+        if self.timer == 3:
+           # print(timer)
+            self.timer = 0
+            return True
+        
+        elif self.timer >= 0:
+             self.timer = self.timer + 1
+            # print(timer)
+             return False
+           
+       
+        
     
     def run(self):
-       pass
-
-
-   
+        print("Scanning!")
+        turnLeft(1, 2) # Turn 360 degrees! (Approx.) 
+        scanner = ColorFinder(True,False)
+        wait(1) # guarantee some movement
+       # scanner.configBlob(extract=True,debug=True)
+        sz,x,y = scanner.findBlob(takePicture(),debug=False)
+        
+        
+        #print(sz,x,y)
+        
+        print("TEST")
+        
+        
 
 class Push(Behavior):
 
@@ -182,8 +202,6 @@ class Push(Behavior):
         pass
 
 
-
-
 class Controller(object):
 
     def __init__(self):
@@ -194,7 +212,7 @@ class Controller(object):
         self.avoidBehavior = Avoid()
         self.wanderBehavior = Wander()
         self.scanBehavior = Scan()
-        self.behaviors = [self.wanderBehavior,self.avoidBehavior]
+        self.behaviors = [self.scanBehavior, self.wanderBehavior, self.avoidBehavior]
 
     def arbitrate(self):
         '''
@@ -218,5 +236,4 @@ if __name__ == '__main__' :
     init('/dev/ttyUSB0')
     ctl = Controller()
     print(getObst())
-   ## show(takePicture())
     ctl.run()
