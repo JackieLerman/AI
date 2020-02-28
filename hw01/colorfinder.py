@@ -58,7 +58,7 @@ class ColorFinder(object):
         if extract: self.extractColor(self.pic)
         self.region = False
         # values sort of work for orange pylon
-        self.hsvmin = np.array([ 3, 214, 193] )
+        self.hsvmin = np.array([3,214,193] )
         self.hsvmax = np.array([ 20, 230, 233] )
 
     def extractColor(self,im):
@@ -83,6 +83,7 @@ class ColorFinder(object):
         self.hstd = np.std(hsv[:,:,0])
         self.sstd = np.std(hsv[:,:,1])
         self.vstd = np.std(hsv[:,:,2])
+        keypoints = None
 
     def fixHSVRange(self,img_hsv,hfac=2,sfac=2,vfac=2):
         '''
@@ -254,10 +255,19 @@ class ColorFinder(object):
         if debug:
             cv2.imshow("Keypoints", im_with_keypoints)
             cv2.waitKey(0)
+            # Changed to return a True or False value to use for Scan Behavior
         if keypoints == []:
-            return [0,0,0]
-        kpt = keypoints[biggest]
-        return [kpt.size,kpt.pt[0],kpt.pt[1]]
+            return ([0,0,0])
+            #return False
+        else:
+            kpt = keypoints[biggest]
+            return ([kpt.size,kpt.pt[0],kpt.pt[1]])
+           
+        
+        
+       
+       
+        
 
     
 if __name__ == '__main__' :

@@ -1,0 +1,215 @@
+# Annealing solution to TSP problem
+# S Anderson (Sept 2014)
+# I think was originally based on the AIMA version.
+
+from copy import deepcopy
+from random import *
+from math import *
+import itertools
+from time import sleep
+from time import time
+
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+
+import sys
+
+PLOTTING = False
+INIT_TEMP = 100.0
+MIN_TEMP = 1 # 1.0e-4
+MIN_LOC = 0.0
+MAX_LOC = 100.0
+
+def perturbTour(tour):
+    '''Swap two random cities in the tour.'''
+    r1 = r2 = 0
+    while r1 == r2:
+        r1 = randint(0,len(tour)-1)
+        r2 = randint(0,len(tour)-1)
+    tour[r1],tour[r2] = tour[r2],tour[r1]
+
+
+def dist(cityA,cityB):
+    '''Return Euclidean distance between two cities, A and B.
+    Each city is a triple (ID, Xcoord, Ycoord).'''
+    cdist = 0.0
+    for i in [1,2]:
+        cdist += (cityA[i] - cityB[i])**2
+    return sqrt(cdist)
+
+def tourLen(tour):
+    '''Return Euc. length of entire tour, a cycle.'''
+    tourlen = 0.0
+    # -1 wraps to 0th city!
+    for i in range(len(tour)):
+        tourlen += dist(tour[i-1],tour[i])
+    return tourlen
+
+def anneal(curPath,numiters = 200,bestTour=[],plots=None,cooling='fast'):
+    '''
+    Beginning with curPath, a tour, use simulated annealing to
+    find and return a better path.
+    '''
+    desiredLen = tourLen(bestTour)
+    temp = INIT_TEMP
+    tempDecrement = 0.99 # amount to decrease temp each time
+    deltaE = 0 # change in energy
+    tmpPath = None
+    tempList = [] # list of temperatures
+    clenList = [] # list of path lengths
+    count = 0
+    annealIters = 0  # iterations of annealing cycle
+    while (temp > MIN_TEMP): # Loop until temp is minimum
+        annealIters += 1
+        pathUpdated = False
+        tmpPath = deepcopy(curPath)
+        clen = tourLen(curPath) # length of current path
+        # Allow tour changes at current temperature
+        for i in range(numiters):
+            perturbTour(tmpPath)
+            tlen = tourLen(tmpPath)
+            deltaE = tlen-clen
+            if deltaE < 0.0: # new tour is beter that current
+                curPath = deepcopy(tmpPath)
+                pathUpdated = True
+                clen = tlen
+            else: # new tour not better
+                if exp( -deltaE / temp) > random():
+                    curPath = deepcopy(tmpPath)
+                    pathUpdated = True
+                    clen = tlen
+            if pathUpdated: # plot all changes to the tour
+                #plotTour(plots[0],curPath,bestTour)
+                pathUpdated = False
+        #print '%5.4f %7.4f' % (temp,clen)
+        tempList.append(temp)
+        clenList.append(clen)
+        count += 1
+        #if (count % 30 == 0):
+        #    plotTourlen(plots[1],plots[2],tempList,clenList)
+
+        # schedule by which to decrease temperature
+        if cooling == 'fast':
+            temp *= tempDecrement
+            
+        if cooling == 'cauchy':
+            temp = INIT_TEMP /count
+           # print("working")
+
+        if cooling == 'boltzmann':
+            temp = 1/(1 + log(1 + count))
+
+            
+        if (count % 100 == 0):
+            plotTourlen(plots[1],plots[2],tempList,clenList)
+
+    plotTour(plots[0],curPath,bestTour)
+    return curPath
+
+def createCities(num = 5):
+    '''Create num random cities in 2D world.'''
+    cities = [ ]
+    for i in range(num):
+        cities.append( (i,uniform(MIN_LOC,MAX_LOC), uniform(MIN_LOC,MAX_LOC) ) )
+    return cities
+
+def bruteForce(tour):
+    # Find solution by brute force (all permutations)
+    paths = itertools.permutations(tour)
+    shortestLen = tourLen(tour)
+    shortestTour = tour
+    for s in paths:
+        tlen = tourLen(s)
+        if tlen < shortestLen:
+            shortestLen = tlen
+            shortestTour = s
+    return shortestTour
+
+
+def plotTour(plotter,tour,bestTour):
+    '''plot tour and bestTour on one plot.'''
+    if not PLOTTING: return
+    #print(bestTour)
+    #for i in range(len(tour)):
+    #    x.append(bestTour[i][1])
+    #    y.append(bestTour[i][2])
+    x = [ coor[1] for coor in bestTour[:] ]
+    y = [ coor[2] for coor in bestTour[:] ]
+    plotter.cla()
+    plotter.plot(x,y,'g-p',linewidth=10,alpha=0.2)
+
+    x = [ coor[1] for coor in bestTour[:] ]
+    y = [ coor[2] for coor in bestTour[:] ]
+    x.append(tour[0][1]); y.append(tour[0][2]) # add first point again
+    plotter.plot(x,y,'r-p',linewidth=3)
+    plotter.set_title('Path of current tour')
+    plt.draw()
+    plt.pause(.1)
+
+def  plotTourlen(plotter1,plotter2,tempList,clenList):
+    '''Plot two input lists'''
+    if not PLOTTING: return
+    x = range(len(tempList))
+    plotter1.plot(x,clenList,'b-')
+    plotter1.set_title('Tour length')
+    plt.draw()
+    x = range(len(tempList))
+    plotter2.plot(x,tempList,'c-')
+    plotter2.set_title('Temperature')
+    plt.draw()
+    plt.pause(.001)
+
+
+def main(num = 5):
+    '''Create TSP and solve it with simulated annealing.'''
+
+    #initialize plot
+    plot1,plot2,plot3 = None,None,None
+    if PLOTTING:
+        fig = plt.figure(figsize=(6,11))
+        plot1 = fig.add_subplot(311)
+        plot2 = fig.add_subplot(312)
+        plot3 = fig.add_subplot(313)
+    tour = createCities(num)
+
+    t0 = time();
+    shortestTour = bruteForce(tour)
+    t1 = time()
+
+    shortestTlen = tourLen(shortestTour)
+
+    print('Brute-force shortest tour n=%d is of length %f in time %f' %
+          (num,shortestTlen, (t1-t0)))
+    #perturbTour(tour)
+    t0 = time();
+    numrepsAtTemp = 3
+    annealTour = anneal(tour,numrepsAtTemp,shortestTour,[plot1,plot2,plot3],'fast')
+    t1 = time();
+
+    print('Anneal shortest tour n= %d is of length %f in time %f' %
+          (num,tourLen(annealTour), (t1-t0)))
+    if PLOTTING:
+        plt.waitforbuttonpress()
+    '''
+    fout = open('tour.dat','w')
+    for c in bestTour:
+        s =  '%d %f %f\n' % c
+        fout.write(s)
+
+    print 'Shortest tour is of length',shortestTlen
+    fout.close()
+    sleep(2)
+    '''
+
+if __name__ == '__main__':
+
+    if len(sys.argv) != 3:
+        print('ERROR\n','USAGE: tspannealExercise.py NUMCITIES p|x')
+        sys.exit(-1)
+
+    # 9 is a reasonably quick value
+    i = int(sys.argv[1])
+
+    if sys.argv[2] == 'p':
+        PLOTTING = True
+    main(num=i)

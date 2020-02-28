@@ -11,6 +11,12 @@ import cv2
 import imageUtils as iu
 from colorfinder import *
 
+print("RERUNNING PROGRAM")
+#found = False
+#sz = 0
+#x = 0
+#y = 0
+
 
 
 
@@ -140,11 +146,11 @@ class Wander(Behavior):
         '''Modify current motor commands by a value in range [-0.25,0.25].
         But can we make it go faster? Hehehe... '''
         print('Wander')
-        self.lspeed += 5.9 * (random.random() - 0.5)
-        self.rspeed += 5.9 * (random.random() - 0.5)
+        self.lspeed += 7.9 * (random.random() - 0.5)
+        self.rspeed += 7.9 * (random.random() - 0.5)
         if (self.lspeed < 0 and self.rspeed < 0): #prevent backwards motion
-            self.lspeed = 5.9    #random.random() MAKING LUCIUS FASTER 
-            self.rspeed = 5.9    #random.random() 
+            self.lspeed = 7.9    #random.random() MAKING LUCIUS FASTER 
+            self.rspeed = 7.9    #random.random() 
         motors(self.lspeed,self.rspeed)
         wait(0.4) # guarantee some movement
 
@@ -158,13 +164,14 @@ class Scan(Behavior):
         self.sz = 0
         self.x = 0
         self.y = 0
+        print("RUNNING INIT")
        
     
     def check(self):
         
         #We always want Lucius to be scanning, even when pushing obj,
         # but only once every three or so seconds.
-        if self.timer == 5:
+        if self.timer == 3:
            # print(timer)
             self.timer = 0
             return True
@@ -179,50 +186,36 @@ class Scan(Behavior):
     
     def run(self):
         print("Scanning!")
+       # turnLeft(1, 2) # Turn 200 degrees! (Approx.) 
         scanner = ColorFinder(True,False)
-
-        for i in range(7):
-            self.sz, self.x, self.y = scanner.findBlob(takePicture(),debug=False)
-            turnLeft(5, 3.6 / 8)  # Turn 45 degrees approx.
-            wait (0.5)
+        wait(1) # guarantee some movement
         
-        
-            if self.sz == 0: # If there is no size then no obj is found.
-                self.found = False
-
-                
-            else: 
-                self.found = True
-                forward(7,4)
-                beep(1, 880,369.994*2)
-                wait(4)
-                break
+        if  scanner.findBlob(takePicture(),debug=False)== [0,0,0]:
+            self.found = False
             
-         # move forward if cone is not found at end of scan 
-        if self.found == False:
-            forward(3,2)
-            wait(.6)
-                                                     
-        
+        else:
+            scanner.configblob(extract = True, debug = True)
+            self.sz,self.x,self.y = scanner.findBlob(takePicture(),debug=False)
+            self.found = True
+            forward(7,4)
+            beep(1, 880,369.994*2)
+            wait(4)
+            
+            
+            #print("FOUND IT!!")
     
         
-
-'''Behavior we created intending to push cone once found. We were unable to figure
-    out how to access the data we needed to make this work. Alex and I will be at
-    your office soon :)'''
+    
 
 class Push(Behavior):
 
     def __init__(self):
-        #Set our found boolean to T/F value of boolean in Scan(Not Working)  
         self.found = Scan().found
     
     def check(self):
        # print("CALLING PUSH CHECK")
-        
-   #Return true if Scan has set found to True (We found the cone!!)This is never
-   #returning true. Accessing found,sz,x, and y, was our biggest challenge
-    
+       # print("Check found ==" , self.found)
+        #Return true if Scan has set found to True (We found the cone!!) 
         if self.found:
             print("RETURNED TRUE")
             return True
@@ -230,6 +223,7 @@ class Push(Behavior):
             return False
     
     def run(self):
+       # print("TESTING!!")
        # print("PUSH SAYS" ,self.sz)
         pass
 
@@ -245,7 +239,7 @@ class Controller(object):
         self.wanderBehavior = Wander()
         self.scanBehavior = Scan()
         self.pushBehavior = Push()
-        self.behaviors = [self.scanBehavior, self.wanderBehavior, self.avoidBehavior]
+        self.behaviors = [self.pushBehavior,self.scanBehavior, self.wanderBehavior, self.avoidBehavior]
 
     def arbitrate(self):
         '''
