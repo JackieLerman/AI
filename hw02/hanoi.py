@@ -1,6 +1,6 @@
 '''
    Solves the generalized Tower of Hanoi using forms of AI search.
-   Date: 02/27/2020
+   Date: 02/28/2020
    Name: Jackie Lerman 
 '''
 
@@ -33,7 +33,7 @@ class HanoiProblem(Problem):
         Returns state that results from act.
         returned state is completely independent of state
         '''
-        print("TEST", state)
+        #print("StateAtStart", state)
         stateaslist = list(state)
         new_state = state #Set new state to current state if unable to take action
         
@@ -41,10 +41,10 @@ class HanoiProblem(Problem):
         #Nested loops to check all possible pairs that could be swapped as action
         
         if action == "AtoB":
-            # Loop to run through number of disks on first rod which should be all disks 
-            for i in range (len(list(stateaslist[0]))):
-                #Loop to run through number of rods 
-                for x in range (len(stateaslist)):
+        #Loop to run through number of rods 
+            for i in range (len(stateaslist)):
+                 # Loop to run through number of disks on first rod which should be all disks 
+                for x in range (len(list(stateaslist[0]))):
                     roda = list(stateaslist[x])
                 
                     if x == len(stateaslist)-1:
@@ -55,24 +55,55 @@ class HanoiProblem(Problem):
 
                         if  len(roda)>0 and len(rodb) == 0:
                             new_state = rodb.append(roda.pop())
+                            exit
                     
                         elif len(roda)==0 and len(rodb) > 0:
-                            new_state = state
+                           new_state = tuple(new_state)
                             
                         elif len(roda)==0 and len(rodb)==0:
+                           
                             new_state = state
-                            
+                          
                 
                         elif roda[0] < rodb[0]:
                             new_state = rodb.append(roda.pop())
 
-                        print("A:", roda, "B:", rodb)
-                
-
-
-                        
+                       # print("A:", roda, "B:", rodb)
                        
-        return tuple(new_state) 
+                        
+        if action == "BtoA":
+            # Loop to run through number of disks on first rod which should be all disks 
+            for i in range (len(stateaslist)):
+                #Loop to run through number of rods 
+                for x in range (len(list(stateaslist[0]))):
+                    roda = list(stateaslist[x])
+                
+                    if x == len(stateaslist)-1:
+                        rodb =  list(stateaslist[x-1])
+                    else:
+                        rodb = list(stateaslist[x+1])
+                        #print("LENGTH",len(rodb))
+
+                        if  len(roda)>0 and len(rodb) == 0:
+                           exit
+                    
+                        elif len(roda)==0 and len(rodb) > 0:
+                            new_state = roda.append(rodb.pop())
+                            
+                            
+                        elif len(roda)==0 and len(rodb)==0:
+                            exit  
+                
+                        elif roda[0] > rodb[0]:
+                            new_state = roda.append(rodb.pop())
+
+                       # print("A:", roda, "B:", rodb)
+        
+                        
+                
+        new_state = tuple(stateaslist)
+        #print("StateAtEnd",state)     
+        return new_state 
 
     def actions(self, statestr):
         '''
@@ -81,6 +112,29 @@ class HanoiProblem(Problem):
         actionlist = ["AtoB", "BtoA"] 
                 
         return actionlist
+    
+    def h(self,state,goal):
+        #Simple heuristic which equals twice the number of disks on initial rod, not yet on
+        #The last rod 
+        statesaslist = list(state)
+        rodalength = len(list(stateaslist[0]))
+        lastrodlength = stateslist[len(statesaslist)]
+        # If goal is found, nummoves should be zero 
+        if state == goal:
+            nummoves = 0
+        #Otherwise, nummoves should equal twice the number of disks on starting stack minus number
+        #of disks on last rod  
+        else:
+            if rodalength == 0:
+                nummoves =0
+                
+            else:
+                nummoves = 2*rodalength - lastrodlength 
+
+        return nummoves
+
+    
+        
 
 
 def printProb(searchtype,p):
